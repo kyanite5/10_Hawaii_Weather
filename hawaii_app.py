@@ -1,5 +1,6 @@
 # Python SQL toolkit and Object Relational Mapper
 import sqlalchemy
+import datetime as dt
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, func, inspect
@@ -23,15 +24,14 @@ app = Flask(__name__)
 def home():
     return (
         f"Welcome to the Hawaii Climate Page!<br/><br/>"
-        f"Available Routes:<br/>"
+        f"Available Routes:<br/><br/>"
         f"/api/v1.0/precipitation<br/>"
         f"/api/v1.0/stations<br/>"
-        f"/api/v1.0/temperature<br/><br/>"
-        f"Enter start date in the specified format:<br/>"
-        f"/api/v1.0/yyyy-mm-dd/<br/>"
+        f"/api/v1.0/temperature<br/>"
         f"<br/>"
-        f"Enter start and end date in the specified format:<br/>"
-        f"/api/v1.0/yyyy-mm-dd/yyyy-mm-dd/<br/>"
+        f"Choose a date between 2010-01-01 and 2017-08-23 in YYYY-MM-DD format:<br/><br/>"
+        f"/api/v1.0/&ltstart&gt <br/><br/>"
+        f"/api/v1.0/&ltstart&gt/&ltend&gt <br/>"
         )
 
 #Precipition totals for Aug 2016-2017
@@ -67,40 +67,32 @@ def tobs():
     return jsonify(tobs_dict)
 
 #Temperature stats for given date
-@app.route('/api/v1.0/<date>/')
-def given_date(date):
+@app.route("/api/v1.0/<start>")
+def start_date_temp(start):
 
-    results = session.query(Measurement.date, func.avg(Measurement.tobs), func.max(Measurement.tobs), func.min(Measurement.tobs)).\
-        filter(Measurement.date == date).all()
+    start_date= dt.datetime.strptime(start, '%Y-%m-%d')
+    end =  dt.date(2017, 8, 23)
+    temp_query = session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
+        filter(Measurement.date >= start_date).filter(Measurement.date <= end).all()
+    mystart = {}
+    for row in temp_query:
+        mystart["Minimum Temperature: "] = row[0]
+        mystart["Average Temperature: "] = row[1]
+        mystart["Maximum Temperature: "] = row[2]
+    return jsonify(mystart)
 
-    data_list = []
-    for result in results:
-        row = {}
-        row['Date'] = result[0]
-        row['Average Temperature'] = result[1]
-        row['Highest Temperature'] = result[2]
-        row['Lowest Temperature'] = result[3]
-        data_list.append(row)
+@app.route("/api/v1.0/<start>/<end>")
+def start_end_temp(start,end):
+    start_date= dt.datetime.strptime(start, '%Y-%m-%d')
+    end_date= dt.datetime.strptime(end,'%Y-%m-%d')
+    start_end_query = session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).filter(Measurement.date >= start_date).filter(Measurement.date <= end_date).all()
+    mystart2 = {}
+    for row in start_end_query:
+        mystart2["Minimum Temperature: "] = row[0]
+        mystart2["Average Temperature: "] = row[1]
+        mystart2["Maximum Temperature: "] = row[2]
 
-    return jsonify(data_list)
-
-#Temperature stats for a range of dates
-@app.route('/api/v1.0/<start_date>/<end_date>/')
-def query_dates(start_date, end_date):
-
-    results = session.query(func.avg(Measurement.tobs), func.max(Measurement.tobs), func.min(Measurement.tobs)).\
-        filter(Measurement.date >= start_date, Measurement.date <= end_date).all()
-
-    data_list = []
-    for result in results:
-        row = {}
-        row["Start Date"] = start_date
-        row["End Date"] = end_date
-        row["Average Temperature"] = result[0]
-        row["Highest Temperature"] = result[1]
-        row["Lowest Temperature"] = result[2]
-        data_list.append(row)
-    return jsonify(data_list)
+    return jsonify(mystart2)
 
 if __name__ == '__main__':
     app.run(debug=True)
